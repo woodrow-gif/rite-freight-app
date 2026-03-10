@@ -1,10 +1,10 @@
 {
   "name": "rite-freight-app",
   "version": "1.0.0",
-  "description": "Modern TMS for Rite Freight",
+  "description": "Professional TMS for Rite Freight",
   "main": "server.js",
   "scripts": {
-    "start": "npx prisma generate && node server.js",
+    "start": "node server.js",
     "postinstall": "npx prisma generate"
   },
   "dependencies": {
