@@ -11,7 +11,8 @@ app.use(express.json());
 // Baza jadvallarini avtomatik sozlash (Migration)
 try {
   console.log('🔄 Bazani tekshirish va sinxronizatsiya qilish...');
-  execSync('npx prisma db push');
+  // Eski qatorni mana bunga almashtiring:
+execSync('npx prisma db push --accept-data-loss');
   console.log('✅ Baza jadvallari tayyor!');
 } catch (error) {
   console.error('❌ Baza xatosi:', error.message);
@@ -127,3 +128,4 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log("🚀 TMS Live on port " + PORT);
 });
+
