@@ -13,7 +13,7 @@ app.use(express.json())
 app.use("/api/loads", loadRoutes)
 
 app.get("/", (req, res) => {
-  res.json({ message: "TMS API working" })
+  res.json({ message: "Dispatch API working" })
 })
 
 const PORT = process.env.PORT || 5000
