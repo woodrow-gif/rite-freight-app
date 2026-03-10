@@ -9,11 +9,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.use("/drivers", driverRoutes);
-app.use("/loads", loadRoutes);
+app.use("/api/drivers", driverRoutes);
+app.use("/api/loads", loadRoutes);
 
 app.get("/", (req, res) => {
-  res.send("TMS API running 🚛");
+  res.json({ message: "TMS API running" });
 });
 
 const PORT = process.env.PORT || 5000;
