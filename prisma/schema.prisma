@@ -7,34 +7,48 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// 1. Foydalanuvchilar (Admin, Dispatcher, Accountant)
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
   fullName     String
   passwordHash String
-  role         String
+  role         String   @default("DISPATCHER")
+  createdLoads Load[]   @relation("UserCreatedLoads")
   createdAt    DateTime @default(now())
 }
 
+// 2. Manzillar (Shipper va Receiver uchun)
 model Location {
-  id        String   @id @default(cuid())
-  address1  String
-  city      String
-  state     String
-  createdAt DateTime @default(now())
+  id             String   @id @default(cuid())
+  address1       String
+  city           String
+  state          String
+  // Bog'liqliklar (Prisma buni talab qiladi)
+  pickupLoads    Load[]   @relation("PickupLocation")
+  deliveryLoads  Load[]   @relation("DeliveryLocation")
+  createdAt      DateTime @default(now())
 }
 
+// 3. Yuklar (Loads) - Tizimning asosi
 model Load {
   id                 String   @id @default(cuid())
   loadNumber         String   @unique
   rate               Float
+  status             String   @default("PREBOOK") // COVERED, EN_ROUTE, DELIVERED
+  
+  // Manzillar bilan bog'liqlik
   pickupLocationId   String
+  pickupLocation     Location @relation("PickupLocation", fields: [pickupLocationId], references: [id])
+  
   deliveryLocationId String
+  deliveryLocation   Location @relation("DeliveryLocation", fields: [deliveryLocationId], references: [id])
+  
   pickupDate         DateTime
+  
+  // Kim yaratgani (User bilan bog'liqlik)
   createdById        String
-
-  pickupLocation     Location @relation(fields: [pickupLocationId], references: [id])
-  deliveryLocation   Location @relation(fields: [deliveryLocationId], references: [id])
+  createdBy          User     @relation("UserCreatedLoads", fields: [createdById], references: [id])
 
   createdAt          DateTime @default(now())
 }
