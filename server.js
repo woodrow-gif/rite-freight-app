@@ -62,4 +62,114 @@ app.get('/', async (req, res) => {
       <title>Rite Freight Pro | Dispatch</title>
       <script src="https://cdn.tailwindcss.com"></script>
     </head>
-    <body class="
+    <body class="bg-[#f8f9fc] font-sans text-slate-900">
+      <div class="flex h-screen">
+        <div class="w-64 bg-[#0f172a] text-white p-6 shadow-2xl flex flex-col">
+          <div class="flex items-center space-x-3 mb-12">
+            <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center font-black italic text-xl">RF</div>
+            <div class="leading-none">
+              <span class="block font-black text-lg tracking-tighter">RITE FREIGHT</span>
+              <span class="text-[10px] text-blue-400 font-bold uppercase tracking-widest">Logistics TMS</span>
+            </div>
+          </div>
+          <nav class="flex-1 space-y-1">
+            <a href="/" class="flex items-center space-x-3 p-3 bg-blue-600/10 text-blue-400 rounded-xl border border-blue-600/20 font-bold">
+              <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+              <span>Dispatch Board</span>
+            </a>
+            <a href="#" class="flex items-center space-x-3 p-3 text-slate-400 hover:text-white transition"><span>Loads Management</span></a>
+            <a href="#" class="flex items-center space-x-3 p-3 text-slate-400 hover:text-white transition"><span>Fleet Maintenance</span></a>
+            <a href="#" class="flex items-center space-x-3 p-3 text-slate-400 hover:text-white transition"><span>Financials</span></a>
+          </nav>
+        </div>
+
+        <div class="flex-1 flex flex-col">
+          <header class="h-20 bg-white border-b border-slate-200 px-8 flex justify-between items-center">
+            <div>
+              <h2 class="text-xl font-black text-slate-800 uppercase italic">Active Dispatch</h2>
+              <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Division: TEAM 3</p>
+            </div>
+            <button onclick="document.getElementById('modal').style.display='flex'" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-black text-xs shadow-lg shadow-blue-200 transition uppercase tracking-widest">
+              + NEW ASSIGNMENT
+            </button>
+          </header>
+
+          <main class="p-8 overflow-y-auto">
+            <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden">
+              <table class="w-full text-left">
+                <thead class="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] border-b border-slate-100">
+                  <tr>
+                    <th class="p-6">Driver</th>
+                    <th class="p-6">Status</th>
+                    <th class="p-6">Destination</th>
+                    <th class="p-6">Gross Pay</th>
+                    <th class="p-6"></th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50">\${rows}</tbody>
+              </table>
+            </div>
+          </main>
+        </div>
+      </div>
+
+      <div id="modal" style="display:none;" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-[2.5rem] p-10 w-full max-w-md shadow-2xl">
+          <h3 class="text-2xl font-black mb-8 text-slate-800 italic uppercase">New Driver</h3>
+          <form action="/add-driver" method="POST" class="space-y-6">
+            <div>
+              <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Driver Full Name</label>
+              <input type="text" name="name" required class="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition font-bold">
+            </div>
+            <div class="flex space-x-4 pt-4">
+              <button type="button" onclick="document.getElementById('modal').style.display='none'" class="flex-1 py-4 font-black text-slate-300 uppercase text-xs">Cancel</button>
+              <button type="submit" class="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-black shadow-xl shadow-blue-100 uppercase text-xs tracking-widest">Confirm</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <script>
+        async function updateDriver(id, field, value) {
+          await fetch('/update-driver', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({id, [field]: value})
+          });
+        }
+        async function deleteDriver(id) {
+          if(confirm('Ochirishga ishonchingiz komilmi?')) {
+            await fetch('/delete-driver/' + id, {method: 'DELETE'});
+            location.reload();
+          }
+        }
+      </script>
+    </body>
+    </html>
+  \`);
+});
+
+// APIs
+app.post('/add-driver', async (req, res) => {
+  await prisma.driver.create({ data: { name: req.body.name } });
+  res.redirect('/');
+});
+
+app.post('/update-driver', async (req, res) => {
+  const { id, status, dest, gross } = req.body;
+  const data = {};
+  if(status) data.status = status;
+  if(dest !== undefined) data.dest = dest;
+  if(gross !== undefined) data.gross = parseFloat(gross) || 0;
+  
+  await prisma.driver.update({ where: { id }, data });
+  res.json({success: true});
+});
+
+app.delete('/delete-driver/:id', async (req, res) => {
+  await prisma.driver.delete({ where: { id: req.params.id } });
+  res.json({success: true});
+});
+
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => console.log("🚀 TMS PRO LIVE"));
