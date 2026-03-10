@@ -1,0 +1,37 @@
+// Prisma Schema - Tizimning poydevori
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 1. Foydalanuvchilar (Admin, Dispatcher)
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      String   @default("DISPATCHER")
+}
+
+// 2. Haydovchilar
+model Driver {
+  id            String   @id @default(uuid())
+  name          String
+  phone         String?
+  status        String   @default("AVAILABLE")
+  loads         Load[]
+}
+
+// 3. Yuklar (Loads)
+model Load {
+  id               String   @id @default(uuid())
+  loadNumber       String   @unique
+  pickupLocation   String
+  deliveryLocation String
+  status           String   @default("PREBOOK")
+  driverId         String?
+  driver           Driver?  @relation(fields: [driverId], references: [id])
+}
