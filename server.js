@@ -17,24 +17,26 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
-// Baza jadvallarini yangilash (status ustunini qo'shish bilan)
+// Bazani yangi accounting ustunlari bilan boyitish
 async function initDatabase() {
     try {
         await pool.query(`CREATE TABLE IF NOT EXISTS loads (
             id SERIAL PRIMARY KEY, 
             driver TEXT, 
             dest TEXT, 
-            lat FLOAT, 
-            lng FLOAT, 
-            status TEXT DEFAULT 'Ready'
+            gross FLOAT DEFAULT 0,
+            status TEXT DEFAULT 'Ready',
+            lat FLOAT DEFAULT 41.2995,
+            lng FLOAT DEFAULT 69.2401
         )`);
-        console.log("✅ Baza statuslar bilan tayyor!");
+        console.log("✅ Dispatch Board bazasi tayyor!");
     } catch (err) { console.error("❌ Baza xatosi:", err.message); }
 }
 initDatabase();
 
+// Login qismi
 app.get('/login', (req, res) => {
-    res.send(`<html><body style="background:#0f172a; display:flex; justify-content:center; align-items:center; height:100vh; font-family:sans-serif; margin:0;"><form action="/login" method="POST" style="background:white; padding:40px; border-radius:10px; width:300px;"><h2 style="text-align:center; color:#1e293b">TMS LOGIN</h2><input name="username" placeholder="User" style="display:block; width:100%; margin-bottom:10px; padding:12px; border:1px solid #ddd; border-radius:5px;"><input name="password" type="password" placeholder="Pass" style="display:block; width:100%; margin-bottom:20px; padding:12px; border:1px solid #ddd; border-radius:5px;"><button style="width:100%; padding:12px; background:#2563eb; color:white; border:none; border-radius:5px; font-weight:bold; cursor:pointer">LOG IN</button></form></body></html>`);
+    res.send(`<html><body style="background:#f3f4f6; display:flex; justify-content:center; align-items:center; height:100vh; font-family:sans-serif;"><form action="/login" method="POST" style="background:white; padding:40px; border-radius:8px; box-shadow:0 4px 6px rgba(0,0,0,0.1); width:320px;"><h2 style="text-align:center; margin-bottom:20px; color:#1f2937">Rite Freight Login</h2><input name="username" placeholder="User" style="width:100%; margin-bottom:10px; padding:10px; border:1px solid #ddd; border-radius:4px;"><input name="password" type="password" placeholder="Pass" style="width:100%; margin-bottom:20px; padding:10px; border:1px solid #ddd; border-radius:4px;"><button style="width:100%; padding:10px; background:#2563eb; color:white; border:none; border-radius:4px; cursor:pointer">Sign In</button></form></body></html>`);
 });
 
 app.post('/login', (req, res) => {
@@ -43,12 +45,12 @@ app.post('/login', (req, res) => {
     } else { res.send("Xato!"); }
 });
 
-// Statusni yangilash uchun API
-app.post('/update-status', async (req, res) => {
-    const { id, status } = req.body;
+// Status va Grossni yangilash API
+app.post('/update-load', async (req, res) => {
+    const { id, status, gross } = req.body;
     try {
-        await pool.query('UPDATE loads SET status = $1 WHERE id = $2', [status, id]);
-        io.emit('statusUpdated', { id, status });
+        await pool.query('UPDATE loads SET status = $1, gross = $2 WHERE id = $3', [status, gross, id]);
+        io.emit('loadUpdated', { id, status, gross });
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -65,49 +67,86 @@ app.get('/', async (req, res) => {
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
         <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
         <script src="/socket.io/socket.io.js"></script>
-        <style>
-            .status-btn { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; border: none; margin: 2px; }
-            .Ready { background: #22c55e; color: white; }
-            .EnRoute { background: #3b82f6; color: white; }
-            .Covered { background: #eab308; color: black; }
-            .Resting { background: #64748b; color: white; }
-            .Home { background: #ef4444; color: white; }
-        </style>
     </head>
-    <body class="bg-slate-950 text-white flex h-screen overflow-hidden">
-        <div class="w-80 bg-slate-900 border-r border-slate-800 flex flex-col p-4">
-            <h1 class="font-black text-blue-500 italic text-xl mb-4 text-center border-b border-slate-700 pb-2">RITE TMS</h1>
-            
-            <form action="/add" method="POST" class="space-y-2 mb-6">
-                <input name="driver" placeholder="Driver Name" required class="w-full bg-slate-800 p-2 rounded border border-slate-700">
-                <input name="dest" placeholder="Destination" class="w-full bg-slate-800 p-2 rounded border border-slate-700">
-                <button class="w-full bg-blue-600 p-2 rounded font-bold">ADD DRIVER</button>
-            </form>
+    <body class="bg-gray-100 font-sans">
+        <nav class="bg-white border-b p-4 flex justify-between items-center shadow-sm">
+            <div class="flex items-center space-x-4">
+                <span class="text-blue-600 font-bold text-xl italic">RITE FREIGHT INC</span>
+                <div class="bg-gray-200 text-xs px-2 py-1 rounded">TEAM 3</div>
+            </div>
+            <div class="text-sm font-medium text-gray-600">Dispatch Board</div>
+        </nav>
 
-            <div class="flex-1 overflow-y-auto space-y-2" id="driver-list">
-                \${loads.map(l => \`
-                    <div id="card-\${l.id}" class="bg-slate-800 p-3 rounded border-l-4 \${l.status === 'Ready' ? 'border-green-500' : 'border-blue-500'}">
-                        <div class="flex justify-between font-bold text-sm">
-                            <span>\${l.driver}</span>
-                            <span class="text-xs opacity-70" id="stat-text-\${l.id}">\${l.status}</span>
-                        </div>
-                        <div class="mt-2 flex flex-wrap">
-                            <button onclick="updateStatus(\${l.id}, 'Ready')" class="status-btn Ready">Ready</button>
-                            <button onclick="updateStatus(\${l.id}, 'EnRoute')" class="status-btn EnRoute">EnRoute</button>
-                            <button onclick="updateStatus(\${l.id}, 'Covered')" class="status-btn Covered">Covered</button>
-                            <button onclick="updateStatus(\${l.id}, 'Home')" class="status-btn Home">Home</button>
-                        </div>
-                    </div>
-                \`).join('')}
+        <div class="flex h-[calc(100vh-64px)]">
+            <div class="w-2/3 p-4 overflow-y-auto bg-white">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold text-gray-700 uppercase tracking-wider">Status Board</h2>
+                    <button onclick="document.getElementById('addModal').classList.toggle('hidden')" class="bg-blue-500 text-white px-4 py-2 rounded text-sm hover:bg-blue-600">+ New Load</button>
+                </div>
+
+                <table class="w-full text-left border-collapse bg-white">
+                    <thead>
+                        <tr class="bg-gray-50 border-b text-gray-500 text-xs uppercase">
+                            <th class="p-3">Status</th>
+                            <th class="p-3">Driver</th>
+                            <th class="p-3">Destination</th>
+                            <th class="p-3">Gross ($)</th>
+                            <th class="p-3">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="board-body">
+                        \${loads.map(l => \`
+                            <tr class="border-b hover:bg-gray-50 text-sm" id="row-\${l.id}">
+                                <td class="p-3">
+                                    <select onchange="updateLoad(\${l.id}, this.value, document.getElementById('gross-\${l.id}').value)" 
+                                            class="p-1 rounded text-xs font-bold \${getStatusColor(l.status)}">
+                                        <option \${l.status === 'Ready' ? 'selected' : ''}>Ready</option>
+                                        <option \${l.status === 'EnRoute' ? 'selected' : ''}>EnRoute</option>
+                                        <option \${l.status === 'Covered' ? 'selected' : ''}>Covered</option>
+                                        <option \${l.status === 'Home' ? 'selected' : ''}>Home</option>
+                                    </select>
+                                </td>
+                                <td class="p-3 font-medium text-gray-800">\${l.driver}</td>
+                                <td class="p-3 text-gray-600 text-xs font-mono italic">\${l.dest}</td>
+                                <td class="p-3">
+                                    <input type="number" id="gross-\${l.id}" value="\${l.gross}" 
+                                           onblur="updateLoad(\${l.id}, null, this.value)"
+                                           class="w-20 border rounded p-1 text-xs">
+                                </td>
+                                <td class="p-3">
+                                    <button class="text-gray-400 hover:text-blue-500">Edit</button>
+                                </td>
+                            </tr>
+                        \`).join('')}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="w-1/3 border-l relative">
+                <div id="map" class="h-full w-full"></div>
+                <div class="absolute top-4 left-4 z-[1000] bg-white p-2 rounded shadow text-xs font-bold">LIVE TRACKING</div>
             </div>
         </div>
 
-        <div id="map" class="flex-1"></div>
+        <div id="addModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[2000]">
+            <div class="bg-white p-6 rounded shadow-lg w-96">
+                <h3 class="text-lg font-bold mb-4 text-gray-700">Add New Assignment</h3>
+                <form action="/add" method="POST" class="space-y-4">
+                    <input name="driver" placeholder="Driver Name" required class="w-full border p-2 rounded">
+                    <input name="dest" placeholder="Destination (City, ST)" class="w-full border p-2 rounded">
+                    <input name="gross" type="number" placeholder="Gross Amount ($)" class="w-full border p-2 rounded">
+                    <div class="flex justify-end space-x-2">
+                        <button type="button" onclick="document.getElementById('addModal').classList.add('hidden')" class="px-4 py-2 text-gray-500">Cancel</button>
+                        <button class="bg-blue-500 text-white px-4 py-2 rounded">Create</button>
+                    </div>
+                </form>
+            </div>
+        </div>
 
         <script>
             const socket = io();
-            const map = L.map("map", {zoomControl:false}).setView([41.2995, 69.2401], 12);
-            L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png").addTo(map);
+            const map = L.map("map", {zoomControl:false}).setView([37.0902, -95.7129], 4); // USA View
+            L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png").addTo(map);
 
             const markers = {};
             const initialLoads = \${JSON.stringify(loads)};
@@ -115,29 +154,22 @@ app.get('/', async (req, res) => {
             initialLoads.forEach(l => {
                 if(l.lat && l.lng) {
                     markers[l.id] = L.circleMarker([l.lat, l.lng], {
-                        radius: 8,
-                        color: l.status === 'Ready' ? '#22c55e' : '#3b82f6',
-                        fillOpacity: 1
-                    }).addTo(map).bindPopup(\`<b>\${l.driver}</b><br>Status: \${l.status}\`);
+                        radius: 7, color: '#3b82f6', fillOpacity: 1
+                    }).addTo(map).bindPopup("<b>" + l.driver + "</b>");
                 }
             });
 
-            function updateStatus(id, newStatus) {
-                fetch('/update-status', {
+            async function updateLoad(id, status, gross) {
+                const currentStatus = status || document.querySelector('#row-'+id+' select').value;
+                await fetch('/update-load', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({id, status: newStatus})
+                    body: JSON.stringify({id, status: currentStatus, gross})
                 });
             }
 
-            socket.on('statusUpdated', (data) => {
-                const card = document.getElementById('card-' + data.id);
-                const text = document.getElementById('stat-text-' + data.id);
-                if(text) text.innerText = data.status;
-                if(markers[data.id]) {
-                    markers[data.id].setPopupContent('<b>Driver</b><br>Status: ' + data.status);
-                    markers[data.id].setStyle({color: data.status === 'Ready' ? '#22c55e' : '#3b82f6'});
-                }
+            socket.on('loadUpdated', (data) => {
+                // Real-time UI updates
             });
 
             socket.on("driverMoved", (data) => {
@@ -149,23 +181,21 @@ app.get('/', async (req, res) => {
     `);
 });
 
+// Yordamchi rang funksiyasi
+function getStatusColor(s) {
+    if(s === 'Ready') return 'bg-emerald-100 text-emerald-700';
+    if(s === 'EnRoute') return 'bg-blue-100 text-blue-700';
+    if(s === 'Covered') return 'bg-orange-100 text-orange-700';
+    return 'bg-gray-100 text-gray-700';
+}
+
 app.post('/add', async (req, res) => {
-    const { driver, dest } = req.body;
-    await pool.query('INSERT INTO loads (driver, dest, lat, lng, status) VALUES ($1, $2, 41.2995, 69.2401, $3)', [driver, dest, 'Ready']);
+    const { driver, dest, gross } = req.body;
+    // USA markazidan boshlash
+    await pool.query('INSERT INTO loads (driver, dest, gross, status, lat, lng) VALUES ($1, $2, $3, $4, $5, $6)', 
+        [driver, dest, gross || 0, 'Ready', 39.8283, -98.5795]);
     res.redirect('/');
 });
 
-setInterval(async () => {
-    try {
-        const result = await pool.query("SELECT * FROM loads WHERE status = 'EnRoute'");
-        result.rows.forEach(async (d) => {
-            const nLat = parseFloat(d.lat) + (Math.random() - 0.5) * 0.002;
-            const nLng = parseFloat(d.lng) + (Math.random() - 0.5) * 0.002;
-            await pool.query('UPDATE loads SET lat = $1, lng = $2 WHERE id = $3', [nLat, nLng, d.id]);
-            io.emit('driverMoved', { id: d.id, lat: nLat, lng: nLng });
-        });
-    } catch (e) {}
-}, 4000);
-
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => console.log("✅ Server yondi"));
+server.listen(PORT, () => console.log("✅ Dispatch Board yondi"));
