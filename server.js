@@ -1,23 +1,23 @@
-const express = require("express");
-const cors = require("cors");
+require("dotenv").config()
 
-const driverRoutes = require("./routes/drivers");
-const loadRoutes = require("./routes/loads");
+const express = require("express")
+const cors = require("cors")
 
-const app = express();
+const loadRoutes = require("./routes/loads")
 
-app.use(cors());
-app.use(express.json());
+const app = express()
 
-app.use("/api/drivers", driverRoutes);
-app.use("/api/loads", loadRoutes);
+app.use(cors())
+app.use(express.json())
+
+app.use("/api/loads", loadRoutes)
 
 app.get("/", (req, res) => {
-  res.json({ message: "TMS API running" });
-});
+  res.json({ message: "TMS API working" })
+})
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5000
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+  console.log("Server running on port " + PORT)
+})
